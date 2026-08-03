@@ -18,6 +18,37 @@ DB_DIR = os.getenv("KUZU_DB_DIR", "./graph_db")
 _db_queue = queue.Queue()
 
 
+def _init_schema_on_conn(conn: kuzu.Connection):
+    node_tables = {
+        "Machine": "CREATE NODE TABLE Machine(id STRING, name STRING, private_ip STRING, public_ip STRING, owner STRING, os STRING, internal_tags STRING[], cloud_tags STRING, PRIMARY KEY (id))",
+        "CloudResource": "CREATE NODE TABLE CloudResource(id STRING, name STRING, type STRING, region STRING, resource_group STRING, internal_tags STRING[], PRIMARY KEY (id))",
+        "Incident": "CREATE NODE TABLE Incident(id STRING, title STRING, severity STRING, status STRING, description STRING, created_at STRING, PRIMARY KEY (id))",
+        "Alert": "CREATE NODE TABLE Alert(id STRING, name STRING, category STRING, evidence STRING, PRIMARY KEY (id))",
+        "User": "CREATE NODE TABLE User(id STRING, email STRING, role STRING, privilege STRING, riskScore INT64, PRIMARY KEY (id))"
+    }
+
+    for name, stmt in node_tables.items():
+        try:
+            conn.execute(stmt)
+            logger.info(f"Created node table: {name}")
+        except Exception:
+            pass
+
+    rel_tables = {
+        "AFFECTS": "CREATE REL TABLE AFFECTS(FROM Incident TO Machine)",
+        "HOSTED_IN": "CREATE REL TABLE HOSTED_IN(FROM Machine TO CloudResource, FROM CloudResource TO CloudResource)",
+        "INCLUDES": "CREATE REL TABLE INCLUDES(FROM Incident TO Alert)",
+        "LOGGED_IN_TO": "CREATE REL TABLE LOGGED_IN_TO(FROM User TO Machine)"
+    }
+
+    for name, stmt in rel_tables.items():
+        try:
+            conn.execute(stmt)
+            logger.info(f"Created relationship table: {name}")
+        except Exception:
+            pass
+
+
 def _db_worker_loop():
     logger.info(f"Initializing Kuzu Database on dedicated worker thread at: {DB_DIR}")
     db = kuzu.Database(DB_DIR)
@@ -40,7 +71,6 @@ def _db_worker_loop():
             event.set()
             _db_queue.task_done()
 
-
 def _run_on_db_thread(fn, *args, **kwargs):
     result_holder = {}
     event = threading.Event()
@@ -56,49 +86,12 @@ _worker_thread = threading.Thread(target=_db_worker_loop, daemon=True, name="Kuz
 _worker_thread.start()
 
 
-def _init_schema_on_conn(conn: kuzu.Connection):
-    node_tables = {
-        "Machine":      "CREATE NODE TABLE Machine(id STRING, name STRING, private_ip STRING, public_ip STRING, owner STRING, os STRING, internal_tags STRING[], cloud_tags STRING, has_defender BOOLEAN, has_crowdstrike BOOLEAN, riskScore INT64, PRIMARY KEY(id))",
-        "CloudResource":"CREATE NODE TABLE CloudResource(id STRING, name STRING, type STRING, region STRING, resource_group STRING, internal_tags STRING[], PRIMARY KEY(id))",
-        "Incident":     "CREATE NODE TABLE Incident(id STRING, title STRING, severity STRING, status STRING, description STRING, created_at STRING, PRIMARY KEY(id))",
-        "Alert":        "CREATE NODE TABLE Alert(id STRING, name STRING, category STRING, evidence STRING, PRIMARY KEY(id))",
-        "User":         "CREATE NODE TABLE User(id STRING, email STRING, role STRING, privilege STRING, riskScore INT64, PRIMARY KEY(id))",
-    }
-    rel_tables = {
-        "AFFECTS":      "CREATE REL TABLE AFFECTS(FROM Incident TO Machine)",
-        "HOSTED_IN":    "CREATE REL TABLE HOSTED_IN(FROM Machine TO CloudResource)",
-        "CONTAINED_IN": "CREATE REL TABLE CONTAINED_IN(FROM CloudResource TO CloudResource)",
-        "INCLUDES":     "CREATE REL TABLE INCLUDES(FROM Incident TO Alert)",
-        "LOGGED_IN_TO": "CREATE REL TABLE LOGGED_IN_TO(FROM User TO Machine)",
-        "AFFECTS_USER": "CREATE REL TABLE AFFECTS_USER(FROM Incident TO User)",
-    }
-
-    for name, cypher in node_tables.items():
-        try:
-            conn.execute(cypher)
-            logger.info(f"Node table '{name}' created.")
-        except Exception as e:
-            if "already exists" in str(e).lower() or "duplicate" in str(e).lower():
-                logger.debug(f"Node table '{name}' already exists.")
-            else:
-                logger.error(f"Error creating node table '{name}': {e}")
-
-    for name, cypher in rel_tables.items():
-        try:
-            conn.execute(cypher)
-            logger.info(f"Rel table '{name}' created.")
-        except Exception as e:
-            if "already exists" in str(e).lower() or "duplicate" in str(e).lower():
-                logger.debug(f"Rel table '{name}' already exists.")
-            else:
-                logger.error(f"Error creating rel table '{name}': {e}")
-
-
 def init_schema():
     """Trigger schema init (runs safely on dedicated worker thread)."""
     def _do_init(conn):
         _init_schema_on_conn(conn)
     _run_on_db_thread(_do_init)
+
 
 
 def execute_query(query: str, params: dict = None) -> list[dict]:
