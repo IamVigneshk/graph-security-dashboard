@@ -1,0 +1,31 @@
+# Database & Storage (DO NOT COMMIT DATA)
+graph_db/
+*.db
+*.lock
+
+# Python Virtual Environment & Caches
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Node.js & Frontend Build
+node_modules/
+dist/
+.vite/
+
+# Environment & Secret files
+.env
+.env.local
+.env.*.local
+
+# OS & IDE metadata
+.DS_Store
+.vscode/
+.idea/
+
+# Logs & Temporary files
+*.log
+scratch/

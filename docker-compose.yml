@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  security-graph:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: security_graph_container
+    ports:
+      - "8000:8000"
+    volumes:
+      # Persistent local database directory mapping
+      - ./graph_db:/app/graph_db
+    environment:
+      - KUZU_DB_DIR=/app/graph_db
+    restart: unless-stopped
