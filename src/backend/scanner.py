@@ -262,7 +262,14 @@ def run_azure_defender_scan(log_callback=None):
     log("Starting Azure & Defender Asset Discovery scan...")
     time.sleep(0.5)
 
+    if os.getenv("USE_MOCK_DATA", "false").lower() in ("true", "1", "yes"):
+        log("USE_MOCK_DATA enabled. Hydrating mock B2B threat topology...")
+        _hydrate_simulated_data(log, live_mode=False)
+        log("Mock Scan and Graph Hydration completed successfully!")
+        return
+
     azure_active = False
+
     subscriptions = []
 
     if HAS_AZURE_SDK:

@@ -13,8 +13,8 @@ __pycache__/
 
 # Node.js & Frontend Build
 node_modules/
-dist/
 .vite/
+
 
 # Environment & Secret files
 .env

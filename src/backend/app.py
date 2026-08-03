@@ -28,8 +28,11 @@ app = FastAPI(
 def startup_event():
     try:
         init_schema()
+        from src.backend.scanner import run_azure_defender_scan
+        run_azure_defender_scan()
     except Exception as e:
-        logger.error(f"Error during schema initialization: {e}")
+        logger.error(f"Error during startup initialization: {e}")
+
 
 # Enable CORS for frontend development
 app.add_middleware(
@@ -370,5 +373,6 @@ else:
 
 if __name__ == "__main__":
     import uvicorn
-    # Default to running on port 8000
-    uvicorn.run("src.backend.app:app", host="0.0.0.0", port=8000, reload=False)
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run("src.backend.app:app", host="0.0.0.0", port=port, reload=False)
+
